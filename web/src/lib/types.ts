@@ -5,8 +5,8 @@ export interface SlotMeta { interval_s: number; recovered_after_s: number | null
 export interface StatusMonitor {
   id: number; name: string; status: EntityStatus; uptime: number; flaky_count: number; bars: Bar[]
   interval_s: number
-  daily: DayDetail[]                                             // 90d/30d 时与 bars 同序；24h 时为空
-  slots_meta: Array<SlotMeta | null>                             // 24h 时与 bars 同序；日档为空
+  daily: DayDetail[]                                             // 日档（>24h）时与 bars 同序；小时档为空
+  slots_meta: Array<SlotMeta | null>                             // 小时档（≤24h）时与 bars 同序；日档为空
 }
 export interface StatusGroup {
   id: number | null; name: string; status: EntityStatus; uptime: number; monitors: StatusMonitor[]; bars: Bar[]

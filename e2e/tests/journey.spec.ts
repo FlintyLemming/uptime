@@ -54,6 +54,15 @@ async function fetchStatus(range = '24h'): Promise<StatusDoc> {
   return r.json() as Promise<StatusDoc>
 }
 
+/** 状态页时间段现在是下拉框：点开触发按钮后在 listbox 里选目标档位 */
+async function selectStatusRange(p: Page, label: string) {
+  const listbox = p.getByRole('listbox')
+  if (!(await listbox.isVisible().catch(() => false))) {
+    await p.locator('button[aria-haspopup="listbox"]').click()
+  }
+  await p.getByRole('option', { name: label }).click()
+}
+
 function findMonitor(doc: StatusDoc, name: string) {
   for (const g of doc.groups) {
     const m = g.monitors.find((x) => x.name === name)
@@ -229,8 +238,8 @@ test('6. 等待数据：状态页出现绿条，横幅「所有系统运行正�
   // 全新实例：90d 日桶尚未 rollup（小时任务），全部为 nodata 灰
   expect(await bar.locator('rect[fill="#e4e4e7"]').count()).toBeGreaterThan(0)
 
-  // 24h 档直接吃 slot：切档后自动等待出现绿条（「未分组」空组的条恒为灰，故只挑含绿条的 svg）
-  await page.getByRole('button', { name: '24 小时' }).click()
+  // 24h 档直接吃 slot：切档后自动等待出现绿条（只挑含绿条的 svg）
+  await selectStatusRange(page, '24 小时')
   const greenBars = page.locator('svg[viewBox="0 0 668 16"]').filter({ has: page.locator('rect[fill="#24c19a"]') })
   await expect(greenBars.first()).toBeVisible({ timeout: 10_000 })
   // 最近一根条（监控行最后一根）应为绿
@@ -253,7 +262,7 @@ test('7. 图例/说明段/tooltip/24 小时档（对照 mock）', async () => {
   await expect(page.getByText(httpMonitor.name).first()).toBeVisible()
 
   // 切换到 24 小时档：label 用「24 小时」，起始标签说明每条 = 1 个检查间隔（每个分组行各有一条）
-  await page.getByRole('button', { name: '24 小时' }).click()
+  await selectStatusRange(page, '24 小时')
   await expect(page.getByText('24 小时前（每条 = 1 个检查间隔）').first()).toBeVisible()
 
   // 24h 档 tooltip（slot 分支文案）：interval 秒级的 24h 条形有上千根（step 远小于 1px，
@@ -277,6 +286,35 @@ test('7. 图例/说明段/tooltip/24 小时档（对照 mock）', async () => {
   expect(findMonitor(doc, tcpMonitor.name)!.bars.length).toBe(Math.floor(86400 / 10))
 })
 
+test('7b. 时间段下拉框：新增 1/3/6/12 小时档，条形数按 rangeSec/interval 缩放', async () => {
+  await page.goto('/')
+  // 确保分组展开
+  if (!(await page.getByText(httpMonitor.name).first().isVisible().catch(() => false))) {
+    await page.getByText('API').first().click()
+  }
+
+  // 下拉框含全部 7 档；页面默认 90d，当前档打勾（aria-selected）
+  await page.locator('button[aria-haspopup="listbox"]').click()
+  for (const label of ['1 小时', '3 小时', '6 小时', '12 小时', '24 小时', '30 天', '90 天']) {
+    await expect(page.getByRole('option', { name: label })).toBeVisible()
+  }
+  expect(await page.getByRole('option', { name: '90 天' }).getAttribute('aria-selected')).toBe('true')
+  await page.keyboard.press('Escape')   // 关掉面板，selectStatusRange 再点开
+
+  // 逐一切到小时档：起始标签 + API 条形数 = rangeSec / interval
+  for (const [label, range, sec] of [['1 小时', '1h', 3600], ['3 小时', '3h', 3 * 3600], ['6 小时', '6h', 6 * 3600], ['12 小时', '12h', 12 * 3600]] as const) {
+    await selectStatusRange(page, label)
+    await expect(page.getByText(`${sec / 3600} 小时前（每条 = 1 个检查间隔）`).first()).toBeVisible()
+    const d = await fetchStatus(range)
+    expect(findMonitor(d, tcpMonitor.name)!.bars.length).toBe(Math.floor(sec / 10))
+    expect(findMonitor(d, httpMonitor.name)!.bars.length).toBe(Math.floor(sec / 60))
+  }
+
+  // 小时档条形几何：循环后停留在 12h / tcp(10s) = 4320 根（step 远小于 1px，仍按 668/n 公式渲染）
+  const bar = page.locator('svg[viewBox="0 0 668 16"]').last()
+  expect(await bar.locator('rect').count()).toBe(Math.floor(12 * 3600 / 10))
+})
+
 test('8. 详情页：条形图 + 延迟折线 + slot 表格', async () => {
   await page.goto(`/m/${tcpMonitor.id}`)
   await expect(page.getByText(tcpMonitor.name).first()).toBeVisible()
@@ -284,6 +322,18 @@ test('8. 详情页：条形图 + 延迟折线 + slot 表格', async () => {
   await expect(page.locator('.recharts-surface')).toBeVisible()
   expect(await page.locator('table tbody tr').count()).toBeGreaterThan(0)
   await expect(page.getByText('正常').first()).toBeVisible()
+
+  // 详情页下拉框：7 档（含 7 天，不含 90 天）
+  await page.locator('button[aria-haspopup="listbox"]').click()
+  for (const label of ['1 小时', '3 小时', '6 小时', '12 小时', '24 小时', '7 天', '30 天']) {
+    await expect(page.getByRole('option', { name: label })).toBeVisible()
+  }
+  // 切到 1 小时：条形数 = 3600 / interval(10s) = 360
+  await page.getByRole('option', { name: '1 小时' }).click()
+  await expect(page.locator('svg[viewBox="0 0 668 16"]')).toBeVisible()
+  expect(await page.locator('svg[viewBox="0 0 668 16"] rect').count()).toBe(Math.floor(3600 / 10))
+  const ts = await (await fetch(`${BASE}/api/monitors/${tcpMonitor.id}/timeseries?range=1h`)).json() as any
+  expect(ts.range_seconds).toBe(3600)
 
   await page.goto(`/m/${httpMonitor.id}`)
   await expect(page.locator('.recharts-surface')).toBeVisible()

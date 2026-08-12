@@ -5,7 +5,7 @@ import { slotsInRange } from '../store/slots'
 import { dailyInRange } from '../store/daily'
 import { getSettings } from '../store/settings'
 
-const RANGE_SECONDS: Record<string, number> = { '24h': 86400, '7d': 7 * 86400, '30d': 30 * 86400 }
+import { RANGE_SECONDS, type Range } from './aggregate'
 
 export function buildTimeseriesRoutes(db: DrizzleDb) {
   const app = new Hono()
@@ -18,7 +18,7 @@ export function buildTimeseriesRoutes(db: DrizzleDb) {
     if (!(range in RANGE_SECONDS)) return c.json({ error: 'invalid range' }, 400)
     const settings = getSettings(db)
     const nowSec = Math.floor(Date.now() / 1000)
-    const rangeSec = RANGE_SECONDS[range]!
+    const rangeSec = RANGE_SECONDS[range as Range]!
     const slots = slotsInRange(db, id, nowSec - rangeSec, nowSec + 1).map((s) => ({
       started_at: s.startedAt, status: s.status, latency_ms: s.latencyMs, error: s.error,
       attempts: s.attempts, recovered_after_s: s.recoveredAfterS, cert_days_left: s.certDaysLeft,

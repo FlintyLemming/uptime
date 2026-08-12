@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fetchStatus } from '../lib/api'
 import { useTheme } from '../lib/theme'
 import { dayLabel, timeLabel, dur } from '../lib/format'
+import { RANGE_SECONDS, isHourRange, type StatusRange } from '../lib/range'
 import type { StatusResponse, StatusGroup, StatusMonitor, SlotMeta } from '../lib/types'
 import ThemeToggle from '../components/ThemeToggle'
-import RangeTabs from '../components/RangeTabs'
+import RangeSelect from '../components/RangeSelect'
 import StatusBanner from '../components/StatusBanner'
 import GroupRow from '../components/GroupRow'
 import MonitorRow from '../components/MonitorRow'
@@ -12,9 +13,10 @@ import Legend from '../components/Legend'
 import BarTooltip, { type TipState } from '../components/BarTooltip'
 import StaleDataNotice from '../components/StaleDataNotice'
 
-type Range = '90d' | '30d' | '24h'
+type Range = StatusRange
 const RANGES: Array<{ key: Range; label: string }> = [
-  { key: '90d', label: '90 天' }, { key: '30d', label: '30 天' }, { key: '24h', label: '24 小时' },
+  { key: '1h', label: '1 小时' }, { key: '3h', label: '3 小时' }, { key: '6h', label: '6 小时' },
+  { key: '12h', label: '12 小时' }, { key: '24h', label: '24 小时' }, { key: '30d', label: '30 天' }, { key: '90d', label: '90 天' },
 ]
 const OPEN_KEY = 'uptime-open-groups'
 const statusToCode = (s: string) => (s === 'operational' ? 0 : s === 'degraded' ? 1 : s === 'down' ? 3 : 4)
@@ -48,6 +50,13 @@ function groupSummary(g: StatusGroup): string {
   if (flaky > 0) return `范围内 ${flaky} 次闪断`
   if (g.down_seconds > 0) return `累计宕机 ${dur(g.down_seconds)}`
   return '无异常'
+}
+
+function rangeStartLabel(range: Range): string {
+  const sec = RANGE_SECONDS[range]!
+  return isHourRange(range)
+    ? `${sec / 3600} 小时前（每条 = 1 个检查间隔）`
+    : `${sec / 86400} 天前`
 }
 
 export default function StatusPage() {
@@ -88,7 +97,7 @@ export default function StatusPage() {
     const bar = g.bars[barIdx]
     if (!bar) return
     const x = rect.left + rect.width / 2, y = rect.top - 8
-    if (range === '24h') {
+    if (isHourRange(range)) {
       const donor = g.monitors.find((m) => m.bars[barIdx]?.s === bar.s && m.slots_meta[barIdx]) ?? null
       setTip({ x, y, title: timeLabel(bar.t), ...slotLines(bar.s, donor ? donor.slots_meta[barIdx] ?? null : null) })
       return
@@ -106,7 +115,7 @@ export default function StatusPage() {
     const bar = m.bars[barIdx]
     if (!bar) return
     const x = rect.left + rect.width / 2, y = rect.top - 8
-    if (range === '24h') {
+    if (isHourRange(range)) {
       setTip({ x, y, title: timeLabel(bar.t), ...slotLines(bar.s, m.slots_meta[barIdx] ?? null) })
       return
     }
@@ -148,7 +157,7 @@ export default function StatusPage() {
 
         <div className="mt-2 flex items-center justify-between">
           <div className="font-semibold" style={{ fontSize: 15 }}>系统状态</div>
-          <RangeTabs value={range} onChange={(r) => { setRange(r); setTip(null) }} ranges={RANGES} />
+          <RangeSelect value={range} onChange={(r) => { setRange(r); setTip(null) }} ranges={RANGES} />
         </div>
 
         <div className="overflow-hidden rounded-xl border" style={{ borderColor: 'var(--line)', background: 'var(--card)', boxShadow: 'var(--shadow)' }}>
@@ -162,7 +171,7 @@ export default function StatusPage() {
                 onHover={hoverGroupBar}
                 onLeave={() => setTip(null)}
                 summary={groupSummary(g)}
-                rangeStartLabel={range === '24h' ? '24 小时前（每条 = 1 个检查间隔）' : range === '30d' ? '30 天前' : '90 天前'}
+                rangeStartLabel={rangeStartLabel(range)}
               />
               {open[String(g.id)] && (
                 <div className="flex flex-col px-5 pb-1.5 pl-[30px]">

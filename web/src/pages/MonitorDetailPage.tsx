@@ -4,14 +4,16 @@ import { LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer
 import { fetchTimeseries } from '../lib/api'
 import { useTheme } from '../lib/theme'
 import { timeLabel } from '../lib/format'
+import { RANGE_SECONDS, isHourRange, type DetailRange } from '../lib/range'
 import UptimeBar from '../components/UptimeBar'
-import RangeTabs from '../components/RangeTabs'
+import RangeSelect from '../components/RangeSelect'
 import { colorOf } from '../lib/status-color'
 import type { TimeseriesResponse } from '../lib/types'
 
-type Range = '24h' | '7d' | '30d'
+type Range = DetailRange
 const RANGES: Array<{ key: Range; label: string }> = [
-  { key: '24h', label: '24 小时' }, { key: '7d', label: '7 天' }, { key: '30d', label: '30 天' },
+  { key: '1h', label: '1 小时' }, { key: '3h', label: '3 小时' }, { key: '6h', label: '6 小时' },
+  { key: '12h', label: '12 小时' }, { key: '24h', label: '24 小时' }, { key: '7d', label: '7 天' }, { key: '30d', label: '30 天' },
 ]
 const SLOT_STATUS_TEXT = ['正常', '闪断', '离线'] as const
 
@@ -30,8 +32,9 @@ export default function MonitorDetailPage() {
   if (!data) return null
 
   const intervalS = data.monitor.interval_s
-  const count = range === '24h' ? Math.floor(86400 / intervalS) : 0
-  const bars = range === '24h'
+  const rangeSec = RANGE_SECONDS[range]!
+  const count = isHourRange(range) ? Math.floor(rangeSec / intervalS) : 0
+  const bars = isHourRange(range)
     ? (() => {
         const byStart = new Map(data.slots.map((s) => [s.started_at, s]))
         const latest = Math.floor(Date.now() / 1000 / intervalS) * intervalS
@@ -47,7 +50,7 @@ export default function MonitorDetailPage() {
       })
 
   const cert = data.slots.find((s) => s.cert_days_left !== null)?.cert_days_left ?? data.slots.at(-1)?.cert_days_left ?? null
-  const chartData = range === '24h'
+  const chartData = isHourRange(range)
     ? data.slots.filter((s) => s.latency_ms !== null).map((s) => ({ t: timeLabel(s.started_at), p50: s.latency_ms }))
     : data.daily.filter((d) => d.latency_p50 !== null).map((d) => ({ t: d.day.slice(5), p50: d.latency_p50, p95: d.latency_p95 }))
 
@@ -69,7 +72,7 @@ export default function MonitorDetailPage() {
 
         <div className="flex items-center justify-between">
           <div className="font-semibold" style={{ fontSize: 15 }}>检查记录</div>
-          <RangeTabs value={range} onChange={setRange} ranges={RANGES} />
+          <RangeSelect value={range} onChange={setRange} ranges={RANGES} />
         </div>
 
         <div className="flex flex-col gap-4 rounded-xl border p-[20px_22px]" style={{ borderColor: 'var(--line)', background: 'var(--card)', boxShadow: 'var(--shadow)' }}>

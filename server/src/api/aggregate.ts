@@ -1,5 +1,13 @@
-export type Range = '90d' | '30d' | '24h'
+export type Range = '1h' | '3h' | '6h' | '12h' | '24h' | '7d' | '30d' | '90d'
 export type EntityStatus = 'operational' | 'degraded' | 'down' | 'nodata'
+
+export const RANGE_SECONDS: Record<Range, number> = {
+  '1h': 3600, '3h': 3 * 3600, '6h': 6 * 3600, '12h': 12 * 3600,
+  '24h': 86400, '7d': 7 * 86400, '30d': 30 * 86400, '90d': 90 * 86400,
+}
+
+// 小时档（≤24h）用 slot 明细画条形；日档用 slot_daily 聚合
+export const isHourRange = (r: Range): boolean => RANGE_SECONDS[r]! <= 86400
 
 const STATUS_RANK: Record<EntityStatus, number> = { nodata: -1, operational: 0, degraded: 1, down: 2 }
 
@@ -58,6 +66,7 @@ export function buildStatusPayload(input: {
   siteTitle: string; timezone: string; range: Range; nowSec: number; groups: GroupInput[]
 }) {
   const { range, nowSec } = input
+  const rangeSec = RANGE_SECONDS[range]!
   const groupsOut = input.groups.map((g) => {
     let up = 0, flaky = 0, down = 0
     let downSeconds = 0
@@ -66,8 +75,8 @@ export function buildStatusPayload(input: {
       let mUp = 0, mFlaky = 0, mDown = 0
       let dailyOut: Array<{ up: number; flaky: number; down: number; nodata: number }> = []
       let slotsMetaOut: Array<{ interval_s: number; recovered_after_s: number | null } | null> = []
-      if (range === '24h') {
-        const count = Math.floor(86400 / m.intervalS)
+      if (isHourRange(range)) {
+        const count = Math.floor(rangeSec / m.intervalS)
         const byStart = new Map(m.slots.map((s) => [s.startedAt, s]))
         // 末位 = 最近一个已开始的 slot；nowSec 恰在边界上时不包含刚启动的那个
         const latestStart = Math.floor((nowSec - 1) / m.intervalS) * m.intervalS
@@ -80,7 +89,7 @@ export function buildStatusPayload(input: {
           if (row) { if (row.status === 0) mUp++; else if (row.status === 1) mFlaky++; else mDown++ }
         }
       } else {
-        const n = range === '30d' ? 30 : 90
+        const n = Math.round(rangeSec / 86400)
         const dayMs = 86400
         const todayStart = Math.floor(nowSec / dayMs) * dayMs    // 仅用于生成 t 轴；day 字符串对齐由查询侧保证
         const byIdx = new Map(m.daily.map((d, i) => [i, d]))
@@ -100,8 +109,8 @@ export function buildStatusPayload(input: {
       return {
         id: m.id, name: m.name, status: cur, uptime: uptimeRatio(mUp, mFlaky, mDown), flaky_count: mFlaky, bars,
         interval_s: m.intervalS,
-        daily: range === '24h' ? [] : dailyOut,                      // 与 bars 同序；24h 时为空
-        slots_meta: range === '24h' ? slotsMetaOut : [],             // 与 bars 同序；日档为空
+        daily: isHourRange(range) ? [] : dailyOut,                   // 与 bars 同序；小时档为空
+        slots_meta: isHourRange(range) ? slotsMetaOut : [],          // 与 bars 同序；日档为空
       }
     })
     return {

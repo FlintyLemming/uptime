@@ -106,6 +106,36 @@ test('buildStatusPayload 24h uptime counts flaky once: (up+flaky)/(up+flaky+down
   expect(payload.groups[0]!.down_seconds).toBe(60)  // 1 个 down slot × 60s
 })
 
+test('buildStatusPayload 1h uses slots with count = rangeSec/interval', () => {
+  const nowSec = 1786560600                        // 对齐到 60s 边界
+  const intervalS = 60
+  const slots = [{ startedAt: nowSec - intervalS, status: 2, intervalS, recoveredAfterS: null }]
+  const payload = buildStatusPayload({
+    siteTitle: 'S', timezone: 'UTC', range: '1h', nowSec,
+    groups: [{ id: null, name: '未分组', monitors: [{ id: 1, name: 'm', daily: [], slots, currentStatus: 2, intervalS }] }],
+  })
+  const mon = payload.groups[0]!.monitors[0]!
+  expect(mon.bars.length).toBe(60)                 // 3600/60
+  expect(mon.bars[59]!.s).toBe(3)                  // 最新位置 = down
+  expect(mon.bars[58]!.s).toBe(4)                  // 其余为 nodata
+  expect(mon.uptime).toBe(0)
+  expect(mon.slots_meta.length).toBe(60)
+  expect(mon.daily).toEqual([])
+})
+
+test('buildStatusPayload 12h bar count scales with range', () => {
+  const nowSec = 1786560600
+  const intervalS = 120                            // 2 分钟间隔 -> 12h = 360 条
+  const payload = buildStatusPayload({
+    siteTitle: 'S', timezone: 'UTC', range: '12h', nowSec,
+    groups: [{ id: null, name: '未分组', monitors: [{ id: 1, name: 'm', daily: [], slots: [], currentStatus: null, intervalS }] }],
+  })
+  const mon = payload.groups[0]!.monitors[0]!
+  expect(mon.bars.length).toBe(360)                // 43200/120
+  expect(mon.bars.every((b) => b.s === 4)).toBe(true)
+  expect(mon.uptime).toBe(1)                       // 全 nodata 不计入分母
+})
+
 test('overall is degraded when flaky present but no down', () => {
   const payload = buildStatusPayload({
     siteTitle: 'S', timezone: 'UTC', range: '90d', nowSec: 1786560600,

@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 export default function MonitorRow({ m, theme, onHover, onLeave }: {
   m: StatusMonitor & { currentColor: number }
   theme: 'light' | 'dark'
-  range: '90d' | '30d' | '24h'
+  range: string
   onHover: (barIdx: number, rect: DOMRect, monitor: StatusMonitor) => void
   onLeave: () => void
 }) {
