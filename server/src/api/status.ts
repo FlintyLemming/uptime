@@ -37,7 +37,7 @@ export function buildStatusRoutes(db: DrizzleDb) {
         return dailyInRange(db, m.id, fromDay, toDay)
       })()
       const slots = range === '24h'
-        ? slotsInRange(db, m.id, nowSec - 86400, nowSec + 1).map((s) => ({ startedAt: s.startedAt, status: s.status, intervalS: s.intervalS }))
+        ? slotsInRange(db, m.id, nowSec - 86400, nowSec + 1).map((s) => ({ startedAt: s.startedAt, status: s.status, intervalS: s.intervalS, recoveredAfterS: s.recoveredAfterS }))
         : []
       const latest = latestSlot(db, m.id)
       const gi = (m.groupId !== null ? byGroup.get(m.groupId) : undefined) ?? ungrouped

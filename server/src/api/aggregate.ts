@@ -7,8 +7,8 @@ export interface BarPoint { t: number; s: number }
 
 export interface MonitorSeriesInput {
   id: number; name: string
-  daily: Array<{ day: string; up: number; flaky: number; down: number }>
-  slots: Array<{ startedAt: number; status: number; intervalS: number }>
+  daily: Array<{ day: string; up: number; flaky: number; down: number; nodata: number }>
+  slots: Array<{ startedAt: number; status: number; intervalS: number; recoveredAfterS: number | null }>
   currentStatus: number | null                     // 0=up 1=flaky 2=down；null = 无数据
   intervalS: number
 }
@@ -60,9 +60,12 @@ export function buildStatusPayload(input: {
   const { range, nowSec } = input
   const groupsOut = input.groups.map((g) => {
     let up = 0, flaky = 0, down = 0
+    let downSeconds = 0
     const monitors = g.monitors.map((m) => {
       let bars: BarPoint[] = []
       let mUp = 0, mFlaky = 0, mDown = 0
+      let dailyOut: Array<{ up: number; flaky: number; down: number; nodata: number }> = []
+      let slotsMetaOut: Array<{ interval_s: number; recovered_after_s: number | null } | null> = []
       if (range === '24h') {
         const count = Math.floor(86400 / m.intervalS)
         const byStart = new Map(m.slots.map((s) => [s.startedAt, s]))
@@ -72,6 +75,7 @@ export function buildStatusPayload(input: {
           const t = latestStart - i * m.intervalS
           const row = byStart.get(t)
           bars.push({ t, s: row ? slotBarColor(row.status) : 4 })
+          slotsMetaOut.push(row ? { interval_s: row.intervalS, recovered_after_s: row.recoveredAfterS } : null)
           // flaky 只计入 mFlaky：uptime% = (up+flaky)/(up+flaky+down)，不可重复计数
           if (row) { if (row.status === 0) mUp++; else if (row.status === 1) mFlaky++; else mDown++ }
         }
@@ -84,20 +88,28 @@ export function buildStatusPayload(input: {
           const d = byIdx.get(m.daily.length - n + i)
           const t = todayStart - (n - 1 - i) * dayMs
           bars.push({ t, s: d ? dayBarColor(d) : 4 })
+          dailyOut.push(d ? { up: d.up, flaky: d.flaky, down: d.down, nodata: d.nodata } : { up: 0, flaky: 0, down: 0, nodata: 0 })
           if (d) { mUp += d.up; mFlaky += d.flaky; mDown += d.down }
         }
       }
       up += mUp; flaky += mFlaky; down += mDown
+      downSeconds += mDown * m.intervalS
       const cur: EntityStatus = m.currentStatus === null ? 'nodata'
         : m.currentStatus === 0 ? 'operational'
         : m.currentStatus === 1 ? 'degraded' : 'down'
-      return { id: m.id, name: m.name, status: cur, uptime: uptimeRatio(mUp, mFlaky, mDown), flaky_count: mFlaky, bars }
+      return {
+        id: m.id, name: m.name, status: cur, uptime: uptimeRatio(mUp, mFlaky, mDown), flaky_count: mFlaky, bars,
+        interval_s: m.intervalS,
+        daily: range === '24h' ? [] : dailyOut,                      // 与 bars 同序；24h 时为空
+        slots_meta: range === '24h' ? slotsMetaOut : [],             // 与 bars 同序；日档为空
+      }
     })
     return {
       id: g.id, name: g.name,
       status: monitors.length === 0 ? 'nodata' as EntityStatus : worstStatus(monitors.map((m) => m.status)),
       uptime: uptimeRatio(up, flaky, down),
       monitors, bars: mergeGroupBars(monitors.map((m) => m.bars)),
+      down_seconds: downSeconds,
     }
   })
 
