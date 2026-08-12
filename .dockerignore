@@ -7,3 +7,5 @@ data
 *.db
 docs
 web/mock
+e2e
+README.md
