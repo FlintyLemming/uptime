@@ -1,0 +1,11 @@
+services:
+  uptime:
+    build: .
+    image: uptime:latest
+    ports: ["3000:3000"]
+    volumes: ["./data:/data"]
+    environment:
+      DATA_DIR: /data
+      PORT: 3000
+      PROBE_CONCURRENCY: 20
+    restart: unless-stopped
