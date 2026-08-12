@@ -24,7 +24,14 @@ export function buildSettingsRoutes(db: DrizzleDb, deps: { onTimezoneChange: (ne
     return c.json(getSettings(db))
   })
 
-  app.post('/password', async (c) => {
+  return app
+}
+
+/** POST /api/admin/password：验证当前密码后用 argon2id 重哈希 */
+export function buildPasswordRoutes(db: DrizzleDb) {
+  const app = new Hono()
+
+  app.post('/', async (c) => {
     const body = await c.req.json<{ current?: string; next?: string }>()
     const row = db.select().from(user).get()
     if (!row) return c.json({ error: 'no user' }, 404)
