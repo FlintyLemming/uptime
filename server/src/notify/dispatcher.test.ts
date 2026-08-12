@@ -3,7 +3,7 @@ import { dispatchWebhook } from './dispatcher'
 
 test('succeeds on first 2xx', async () => {
   const calls: RequestInit[] = []
-  const fetchImpl = (async (_url: string, init?: RequestInit) => { calls.push(init ?? {}); return new Response('ok', { status: 200 }) }) as typeof fetch
+  const fetchImpl = (async (_url: string, init?: RequestInit) => { calls.push(init ?? {}); return new Response('ok', { status: 200 }) }) as unknown as typeof fetch
   const r = await dispatchWebhook({ method: 'POST', url: 'http://x', headers: { 'X-A': '1' }, body: '{}' }, { fetchImpl })
   expect(r.ok).toBe(true)
   expect(r.attempts).toBe(1)
@@ -14,7 +14,7 @@ test('succeeds on first 2xx', async () => {
 test('retries with backoff and eventually succeeds', async () => {
   let n = 0
   const sleeps: number[] = []
-  const fetchImpl = (async () => { n++; return new Response('', { status: n < 3 ? 500 : 204 }) }) as typeof fetch
+  const fetchImpl = (async () => { n++; return new Response('', { status: n < 3 ? 500 : 204 }) }) as unknown as typeof fetch
   const r = await dispatchWebhook({ method: 'POST', url: 'http://x', headers: {}, body: '' },
     { fetchImpl, sleepImpl: async (ms) => { sleeps.push(ms) } })
   expect(r.ok).toBe(true)
@@ -23,7 +23,7 @@ test('retries with backoff and eventually succeeds', async () => {
 })
 
 test('gives up after 3 retries without throwing', async () => {
-  const fetchImpl = (async () => new Response('', { status: 500 })) as typeof fetch
+  const fetchImpl = (async () => new Response('', { status: 500 })) as unknown as typeof fetch
   const r = await dispatchWebhook({ method: 'POST', url: 'http://x', headers: {}, body: '' },
     { fetchImpl, sleepImpl: async () => {} })
   expect(r.ok).toBe(false)
@@ -31,7 +31,7 @@ test('gives up after 3 retries without throwing', async () => {
 })
 
 test('network exception is treated as failure', async () => {
-  const fetchImpl = (async () => { throw new Error('ECONNREFUSED') }) as typeof fetch
+  const fetchImpl = (async () => { throw new Error('ECONNREFUSED') }) as unknown as typeof fetch
   const r = await dispatchWebhook({ method: 'POST', url: 'http://x', headers: {}, body: '' },
     { fetchImpl, sleepImpl: async () => {} })
   expect(r.ok).toBe(false)
