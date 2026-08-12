@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #ffffff;
+  --bg-sub: #f8fafc;
+  --line: #e2e8f0;
+  --fg: #0f172a;
+  --fg-2: #475569;
+  --fg-3: #94a3b8;
+  --card: #ffffff;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+.dark {
+  --bg: #09090b;
+  --bg-sub: #111114;
+  --line: #26262b;
+  --fg: #f8fafc;
+  --fg-2: #a1a1aa;
+  --fg-3: #71717a;
+  --card: #111114;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: Inter, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
