@@ -1,0 +1,10 @@
+{
+  "name": "uptime",
+  "private": true,
+  "workspaces": ["server", "web"],
+  "scripts": {
+    "test": "cd server && bun test",
+    "dev:server": "cd server && bun run --watch src/index.ts",
+    "dev:web": "cd web && bunx vite"
+  }
+}
