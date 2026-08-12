@@ -12,7 +12,8 @@ export default function MonitorRow({ m, theme, onHover, onLeave }: {
   onLeave: () => void
 }) {
   return (
-    <div className="flex flex-col gap-[9px] border-t border-dashed py-[13px_0_15px]" style={{ borderColor: 'var(--line)', borderTopStyle: 'dashed' }}>
+    // pt/pb 分开写：py-[13px_0_15px] 会编译成 padding-block 三值形式，属无效 CSS，整个声明被丢弃
+    <div className="flex flex-col gap-[9px] border-t border-dashed pt-[13px] pb-[15px]" style={{ borderColor: 'var(--line)', borderTopStyle: 'dashed' }}>
       <div className="flex items-center gap-[9px]">
         <span className="h-[7px] w-[7px] flex-none rounded-full" style={{ background: colorOf(m.currentColor, theme) }} />
         <Link to={`/m/${m.id}`} className="truncate font-medium hover:underline" style={{ fontSize: 13.5, color: 'var(--fg)' }}>{m.name}</Link>
